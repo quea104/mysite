@@ -2,6 +2,7 @@
 
 ## ※ PyCharm IDE 환경에서 개발
  
+- 기간: 23.08.31 ~ 23.09.19
 - Python 설치 필수: 3 버전 이상
 - 개발 지침서: https://docs.djangoproject.com/ko/4.2/intro/tutorial01/
 
@@ -217,7 +218,7 @@ TIME_ZONE = 'Asia/Seoul'
 
 USE_I18N = True
 
-USE_TZ = True
+USE_TZ = False
 ```
 #### ※ 표준 시간대
   - Default time zone: TIME_ZONE 변수로 지정한 시간대
@@ -413,6 +414,7 @@ class Choice(models.Model):
 >>> q.was_published_recently()
 True
 ```
+
 5. 참조 테이블에 데이터 저장
 ```commandline
 # Question 객체 중 PK=1 인 데이터 가져오기
@@ -444,8 +446,551 @@ True
 >>> c.delete()
 ```
 
+6. 관리 사이트 생성
+    1. 관리자 계정 생성
+        ```commandline
+        > py manage.py createsuperuser
+        사용자 이름:
+        이메일 주소: 
+        Password:
+        Password (again):
+        Superuser created successfully.
+        ```
+        - 관리자 비밀번호 변경
+        ```commandline
+        > py manage.py changepassword {사용자 이름}
+        Changing password for user '{사용자 이름}'
+        Password:
+        Password (again):
+        Password changed successfully for user '{사용자 이름}'
+        ```
+    2. 관리자 페이지 접속
+       - http://127.0.0.1:8000/admin/
+       - 언어 변경: mysite/settings.py > LANGUAGE_CODE 수정
+       - django.contrib.auth 모듈에서 제공 
+    3. 관리 사이트에서 poll app 변경 가능하도록 설정
+       - 관리자에게 Question 대상에는 관리 인터페이스가 있음을 알려줌.
+       - mystie/admin.py 작성
+       ```python
+       from django.contrib import admin
+       from .models import Question
+       
+       admin.site.register(Quesiton)               
+       ```
+       - 관리 사이트에서 poll.Question 객체 DML 가능. 자동으로 과거 내력 저장 및 확인 가능 
+
+## 8. URL 설계
+- web-poll 애플리케이션 공용 인터페이스 'views' 작성하기
+- view: 특정한 기능을 제공하고 특정한 템플릿을 가진 Django 애플리케이션에 있는 웹 페이지의 'type'.
+- Django는 웹페이지와 기타 콘텐츠가 view로 전달<br>→ 각 view는 Python 함수(또는 클래스 기반 view의 경우 메소드)로 표현<br>→ Django는 요청한 URL(도메인 이름 뒤의 URL 부분)을 왁인하여 보기를 선택.
+- URL로부터 뷰를 얻기 위해 Django는 'URLconfs' 사용하여 URL 패턴을 뷰에 연결함.
+1. 뷰 추가
+   - polls/views.py
+     ```python
+     def detail(request, question_id):
+         return HttpResponse("You're looking at question %s." % question_id)
+
+     def results(request, question_id):
+         response = "You're looking at the results of question %s."
+         return HttpResponse(response % question_id)
+
+     def vote(request, question_id):
+         return HttpResponse("You're voting on question %s." % question_id)
+     ```
+2. 새로운 뷰를 polls.urls 모듈 연결
+    ```python
+    from django.urls import path
+    from . import views
+    
+    urlpatterns = [
+       path("", views.index, name="index"),
+       path("<int:question_id>", views.detail, name="detail"),
+       path("<int:question_id>/results", views.results, name="results"),
+       path("<int:question_id>/vote/", views.vote, name="vote"),
+    ]
+    ```
+   - 처리 순서
+     - "/polls/34" 요청<br>
+       → Django는 ROOT_URLCONF 설정이 가리키는 mystie.urls Python 모듈 로드<br>
+       → urlpatterns 변수를 찾아서 패턴을 순서대로 순회함<br>
+       → polls/ 에서 일치하는 패턴을 찾은 후 일치하는 텍스트("polls/")를 제거하고 나머지 텍스트(–"34/"–)를 추가 처리를 위해 'polls.urls' URLconf로 보냄.<br>
+       → 일치하는 패턴을 찾아 detail() 뷰를 호출
+   - "<int:question_id>"
+     - urlpatterns에서 꺽쇠 괄호를 사용하면 URL의 일부가 캡처되어 키워드 인수로 view 함수에 전송함.
+     - question_id: 일치하는 패턴을 식별하는 데 사용할 이름을 정의
+     - int: URL 경로의 이 부분과 일치하는 패턴을 결정하는 변환기
+     - 콜론(:): 변환기와 패턴이름을 구분
+3. index URL 접속시 Question 객체 출력하기
+  - polls/view.py 추가
+    ```python
+    from django.http import HttpResponse
+    from .models import Question
+    
+    # 새로운 index() 뷰 하나를 호출했을 때, 시스템에 저장된 최소한 5 개의 투표 질문이 콤마로 분리되어, 발행일에 따라 출력                
+    def index(request):   
+        latest_question_list = Questino.objects.order_by("-pub_date")[:5]
+        output = ", ".join([q.question_text for q in latest_question_list])
+        return HttpRespone(output)
+    ```
+4. html 페이지에 Question 객체 출력
+  - polls/templates/polls/index.html 생성
+     - polls/templates/polls/index.html 생성
+     - 프로젝트의 TEMPLATES 설정은 Django가 어떻게 템플릿을 불러오고 렌더링 할 것인지 기술
+     - APP_DIRS 옵션이 True로 설정된 DjangoTemplates 백엔드를 구성
+     - DjangoTemplates은 각 INSTALLED_APPS 디렉토리의 “templates” 하위 디렉토리를 탐색
+       ```html
+        {% if latest_question_list %}
+            <ul>
+            {% for q in latest_question_list %}
+                <li><a href="/polls/{{ q.id }}">{{ q.question_text }}</li>
+            {% endfor %}
+            </ul>
+        {% else %}
+            <p>No polls are available.</p>
+        {% endif %}
+        ```
+  - index 뷰에 template 적용
+    - 템플릿에 context를 채워넣어 표현한 결과를 HttpResponse 객체와 함께 돌려줌.
+    ```python
+    import django.http import HttpResponse
+    import django.template import loader
+    import .modesl import Question
+    
+    def index(request):
+        latest_question_list = Question.objects.order_by("-pub_date")[:5]
+        template = loader.get_template("polls/index.html")
+        context = { 'latest_question_list': latest_question_list }
+        return HttpResponse(template.render(context, template))
+    ```
+    - 단축 기능(shortcuts)으로 코딩
+    ```python
+    import django.shortcuts import render
+    from .models import Question
+    
+    def index(request):
+        latest_question_list = Question.objects.order_by("-pub_date")[:5]
+        context = {'latest_question_list':latest_question_list}
+        return render(request, "polls/index.html", context)
+    ```
+    - 404 에러 발생
+      ```python
+      from django.http import Http404
+      from django.shortcuts import render, get_object_or_404
+      from .models import Question
+    
+      def detail(request, question_id):
+          try:
+              question = Question.objects.get(pk=question_id)
+          except Question.DoesNotExist:
+              raise Http404("Question does not exist")
+          return redner(request, "polls/detail.html", {"question": question})
+      ```
+    - 단축 기능(shortcuts)으로 코딩
+    ```python
+    from django.shortcuts import render, get_object_or_404
+    from .models import Question
+    
+    def detail(request, question_id):
+        question = get_object_or_404(Question, pk=question_id)
+        return redner(request, "polls/detail.html", {"question": question})
+    ```
+    - detail.html 추가
+    ```html
+    <h1>{{ question.question_text }}</h1>
+    <ul>
+    {% for choice in question.choice_set.all %}
+        <li>{{ choice.choice_text }}</li>
+    {% endfor %}
+    </ul>
+    ```
+  - 하드코딩 제거
+    ```html
+    /* 하드 코딩 */
+    <li><a href="/polls/{{ question.id }}/">{{ question.question_text }}</a></li>
+    
+    /* 소프트 코딩 */
+    <li><a href="{% url 'detail' question.id %}">{{ question.question_text }}</a></li>
+    ```
+    - polls.urls 모듈의 path() 함수에서 인수의 이름을 정의하였으므로 {% url %} template 태그를 사용하여 url 설정에 정의된 특정한 URL 경로들의 의존성 제거 가능.
+- URL namespace 설정 
+  - 프로젝트 안에 앱이 다수일 경우 앱의 URL을 구별해줌.
+  - polls/urls.py
+    ```python
+    from django.urls import path
+    from . import views
+        
+    app_name = "polls"
+    urlpatterns = [
+        path("", view.index, name="index"),
+        path("/<int:question_id>", view.detail, name="detail"),
+        path("<int:question_id>/results/", views.results, name="results"),
+        path("<int:question_id>/vote/", views.vote, name="vote"),
+    ]
+    ```
+  - polls/index.html
+    ```html
+    <li><a href="{% url "polls.detail" question.id %}">{{ question.question_text }}</a></li>
+    ```
+
+## 9. 폼 작성
+1. polls/detail.html 수정
+   ```html
+   <form action="{% url 'polls:vote' question.id %}" method="post">
+   {% csrf_token %}
+   <fieldset>
+       <legend><h1>{{ question.question_text }}</h1></legend>
+       {% if error_message %}
+       <p><strong>{{ error_message }}</strong></p>
+       {% endif %}
+    
+       {% for choice in question.choice_set.all %}
+       <input type="radio" name="choice" id="choice{{ forloop.counter }}">
+       <label for="choice{{ forloop.counter }}">{{ choice.choice_text }}</label><br>
+       {% endfor %}
+   </fieldset>
+   <input type="submit" value="Vote">
+   <input type="submit" value="Vote">
+   </form>
+   ```
+   - csrf_token: 하단 '정리' 참조
+   - forloop.counter: for 태그 반복한 횟수(숫자)
+2. polls/views.py
+    ```python
+    from django.http import HttpResponseRedirect
+    from django.urls import reverse
+    from django.shortcuts import render, get_object_or_404
+    from .models import Choice, Question
+    
+    def vote(request, question_id):
+        question = get_object_or_404(Question, pk=question_id)
+        try:
+            selected_choice = questio.choice_set.get(pk=requeste.POST["choice"])
+        except (KeyError, Choice.DoesNotExist):
+            return render(request, "polls/detail.html", {"question": question, "error_message": "You didn't select a choice."})
+        else:
+            selected_choice.votes += 1
+            selected_choice.save()
+            return HttpResponseRedirect(reverse("polls:results", args=(question.id)))
+    ```
+    - request.POST
+      - 키로 전송된 자료에 접근할 수 있도록 해주는 객체
+      - request.POST['choice']는 선택된 설문의 ID를 문자열로 반환해줌.
+      - request.GET 존재.
+      - 만약 POST에 choice가 없을 경우 KeyError 발생
+      - HttpResponseRedirect
+        - POST 데이터 처리 후에는 항상 HttpResponseRedirect를 반환해야 함.
+      - reverse({viewname}, {args})
+        - 뷰 함수에서 URL 소프트 코딩 해줌.
+        - 제어를 전달하기 원하는 뷰의 이름(viewname)을 URL 패턴의 변수 부분을 조합해서 해당 뷰를 가리킴.
+3. results 페이지 만들기
+- polls/results.html
+    ```html
+    <h1>{{ question.question_text }}</h1>
+    <ul>
+    {% for c in question.choice_set.all %}
+        <li>{{ c.choice_text }} -- {{ c.votes }} vote {{ c.votes|pluralize }}</li>
+    {% endfor %}
+    </ul>
+    <a href="{% url 'polls:detail' question.id %}">Vote again?</a>
+    ```
+    - {value}|pluralize: 복수 접미사 필터. value 변수값이 1이 아니면 복수 접미사 s 붙임
+
+4. 제너릭 뷰 사용
+   - views 수정: polls/views.py
+       ```python
+       from django.http import HttpResponseRedirect
+       from django.shortcuts import get_object_or_404, render
+       from django.urls import reverse
+       from django.views import generic
+    
+       from .models import Chocie, Question
+    
+       class IndexView(generic.ListView):
+           template_name = 'polls/index.html'
+           context_object_name = 'latest_question_list'
+    
+           def get_queryset(self):
+               return Question.objects.order_by('-pub_date')[:5]
+    
+       class DetailView(generic.DetailView):
+           model = Question
+           template_name = 'polls/detail.html'
+    
+       class ResultsView(generic.DetailView):
+           model = Question
+           template_name = 'polls/results.html'
+       # 이하 동일 #
+       ```
+   - URLConf 수정: polls/urls.py
+      ```python
+      from django.urls from path
+      from . import views
+    
+      app_name = 'polls'
+      urlpatterns = [
+          path('', views.IndexView.as_view(), name='index'),
+          path('<int:pk>/', views.DetailView.as_view(), name='detail'),
+          path('<int:pk>/results/', views.ResultsView.as_view(), name='results'),
+          path('<int:question_id>/votes/', views.vote, name='vote')
+      ]
+      ```
+   - generic view
+     - 각 제너릭 뷰는 model 속성을 사용하여 표현할 모델 지정. 모델명을 활용하여 컨텍스트 변수명이 자동 명명됨.
+     - .ListView
+       - '개체 목록 표시' 개념을 추상화.
+       - 기본 컨텍스트 변수명: <model_name>_list(소문자)
+       - 기본 템플릿 이름: <app_name>/<model_name>_list.html
+     - .DetailView
+       - '특정 개체 유형에 대한 세부 정보 페이지 표시' 개념을 추상화.
+       - 기본 컨텍스트 변수명: <model_name>(소문자)
+       - 기본 템플릿 이름: <app_name>/<model_name>_detail.html
+       - URL에서 캡처된 기본 키 값이 pk라고 기대하여 question_id 이름을 pk로 변경함.
+     - template_name: 기본 템플릿 이름 대신 특정 이름 사용.
+     - context_object_name: 기본 컨텍스트 변수명 대신 특정 이름 사용. 
+
+## 10. 테스트 자동화
+1. 테스트 케이스 작성
+   - polls/tests.py
+     - 미래의 pub_date를 가진 Question 인스턴스 생성하는 메소드를 가진 django.test.TestCase 하위 클래스 생성
+       ```python
+       from django.test import testcases
+       import datetime
+       from django.utils import timezone
+    
+       from .models import Question
+    
+       class QuestionModelTests(TestCase):
+         def test_was_published_recently_with_future_question(self):
+             time = timezone.now() + datetime.timedelta(days=30)
+             future_question = Question(pub_date=time)
+             self.assertIn(future_question.was_published_recently(), False)
+       ```
+
+2. 테스트 케이스 실행
+    ```commandline
+    > py manage.py test polls
+    Found 1 test(s).
+    Creating test database for alias 'default'...
+    System check identified no issues (0 silenced).
+    F
+    ======================================================================
+    FAIL: test_was_published_recently_with_future_question (polls.tests.QuestionModelTests)
+    ----------------------------------------------------------------------
+    Traceback (most recent call last):
+      File "/path/to/mysite/polls/tests.py", line 16, in test_was_published_recently_with_future_question
+        self.assertIs(future_question.was_published_recently(), False)
+    AssertionError: True is not False
+    
+    ----------------------------------------------------------------------
+    Ran 1 test in 0.001s
+    
+    FAILED (failures=1)
+    Destroying test database for alias 'default'...
+    ```
+   1. polls 앱에서 테스트 찾아서 실행.
+   2. django.test.TestCase 클래스의 서브 클래스 탐색.
+   3. Creating test database for alias 'default' → 테스트 목적으로 특별한 DB 생성.
+   4. 테스트 메소드 이름이 test로 시작하는 메소드 탐색.
+   5. test_was_published_recently_with_future_question 에서 pub_date 필드가 현재 시간의 30일 지난 Question 인스턴스 생성.
+   6. ...assertIn() 메소드 사용하여 False가 반환되야 함을 알림.
+   7. 하지만 테스트 결과는 True이므로 버그.
+
+3. 버그 수정
+   - polls/models.py
+       ```python
+       def was_published_recently(self):
+           now = timezone.now()
+           return now >= self.pub_date >= now - datetime.timedelta(days=1)
+       ```
+     - pub_date 날짜가 과거인 경우에만 true가 되도록 수정
+
+4. 테스트 케이스 보강
+   - Question 모델의 was_recently_published() 메소드의 포괄적인 테스트를 위해<br>
+    pub_date가 미래, 과거, 최근인 Question 인스턴스를 사용한 테스트 메소드 추가 
+       ```python
+       def was_recently_published_with_old_question(self):
+           time = timezone.now() - datetime.timedelta(days=1, seconds=1)
+           old_question = Question(pub_date=time)
+           self.asserIs(old_question.was_recently_published(), False)
+    
+       def was_recently_published_with_recent_question(self):
+           time = timezone.now() - datetime.timedelta(hours=23, minutes=59, seconds=59)
+           recent_question = Question(pub_date=time)
+           self.asserIs(recent_question.was_recently_published(), False)
+       ```
+5. 뷰 테스트
+    - 뷰 레벨에서 코드와 상호 작용하는 사용자를 시뮬레이트하기 위해 테스트 클라어인트 클래스 Client를 사용.
+    - shell에서 테스트 환경 구성
+        - setup_test_environment(): 템플릿 renderer 설치 해줌.
+    ```commandline
+    > py manage.py shell
+    >>> from django.test.utils import setup_test_envrionment
+    >>> setup_test_environment()
+    >>> from django.test import Client
+    >>> client = Client()
+    >>> response = client.get('/')
+    Not Found: /
+    >>> response.status_code
+    404
+    >>> from django.urls import reverse
+    >>> response = client.get(reverse('polls:index'))
+    >>> response.status_code
+    200
+    >>> response.content 
+    b'<h1>POLL LIST</h1>\n\n    <ul>\n        \n            \n            <li><a href="/polls/2/">what&#x27;s new?</a></li>\n        \n            \n            <li><a href="/polls/1/">what&#x27;s up?</a></li>\n        \n    </ul>\n'
+    >>> response.context['latest_question_list']
+    <QuerySet [<Question: what's new?>, <Question: what's up?>]>
+    >>> exit()
+    ```
+   
+    - polls/views.py - 게시 되지 않은 설문조사는 출력 안되게끔 수정
+    ```python
+    from django.utils import timezone
+    
+    def get_queryset(self):
+        """
+        Return the last five published questions (not including those set to be
+        published in the future).
+        """
+        return Question.objects.filter(pub_date__lte=timezone.now()).order_by("-pub_date")[:5]
+    ```
+    - polls/tests.py - Index View 테스트 케이스 추가
+    ```python
+    from django.urls import reverse
+      
+    def create_question(question_text, days):
+        """
+        Create a question with the given `question_text` and published the
+        given number of `days` offset to now (negative for questions published
+        in the past, positive for questions that have yet to be published).
+        """
+        time = timezone.now() + datetime.timedelta(days=days)
+        return Question.objects.create(question_text=question_text, pub_date=time)
+    
+    
+    class QuestionIndexViewTests(TestCase):
+        def test_no_questions(self):
+            """
+            If no questions exist, an appropriate message is displayed.
+            """
+            response = self.client.get(reverse("polls:index"))
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "No polls are available.")
+            self.assertQuerySetEqual(response.context["latest_question_list"], [])
+    
+        def test_past_question(self):
+            """
+            Questions with a pub_date in the past are displayed on the
+            index page.
+            """
+            question = create_question(question_text="Past question.", days=-30)
+            response = self.client.get(reverse("polls:index"))
+            self.assertQuerySetEqual(response.context["latest_question_list"], [question],)
+    
+        def test_future_question(self):
+            """
+            Questions with a pub_date in the future aren't displayed on
+            the index page.
+            """
+            create_question(question_text="Future question.", days=30)
+            response = self.client.get(reverse("polls:index"))
+            self.assertContains(response, "No polls are available.")
+            self.assertQuerySetEqual(response.context["latest_question_list"], [])
+    
+        def test_future_question_and_past_question(self):
+            """
+            Even if both past and future questions exist, only past questions
+            are displayed.
+            """
+            question = create_question(question_text="Past question.", days=-30)
+            create_question(question_text="Future question.", days=30)
+            response = self.client.get(reverse("polls:index"))
+            self.assertQuerySetEqual(response.context["latest_question_list"], [question],)
+    
+        def test_two_past_questions(self):
+            """
+            The questions index page may display multiple questions.
+            """
+            question1 = create_question(question_text="Past question 1.", days=-30)
+            question2 = create_question(question_text="Past question 2.", days=-5)
+            response = self.client.get(reverse("polls:index"))
+            self.assertQuerySetEqual(response.context["latest_question_list"], [question2, question1],)
+    ```
+6. DetailView 테스트
+    - polls/views.py - 미래의 설문 번호를 알아도 접근 못하도록 수정
+    ```python
+    class DetailView(generic.DetailView):
+        ...
+    
+        def get_queryset(self):
+            """
+            Excludes any questions that aren't published yet.
+            """
+            return Question.objects.filter(pub_date__lte=timezone.now())
+    ```
+   - polls/tests.py - 테스트 케이스 추가
+    ```python
+    class QuestionDetailViewTests(TestCase):
+        def test_future_question(self):
+            """
+            The detail view of a question with a pub_date in the future
+            returns a 404 not found.
+            """
+            future_question = create_question(question_text="Future question.", days=5)
+            url = reverse("polls:detail", args=(future_question.id,))
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 404)
+    
+        def test_past_question(self):
+            """
+            The detail view of a question with a pub_date in the past
+            displays the question's text.
+            """
+            past_question = create_question(question_text="Past Question.", days=-5)
+            url = reverse("polls:detail", args=(past_question.id,))
+            response = self.client.get(url)
+            self.assertContains(response, past_question.question_text)
+    ```
+
+## 11. 앱 꾸미기
+- 정적 파일: Django에서 웹 페이지를 랜더링하는데 필요한 추가 파일(html을 제외한 JS, CSS 등)
+- INSTALLED_APPS > django.contrib.staticfiles 을 통해 각 앱의 정적 파일들을 프로덕션 환경에서 제공 할 수 있는 단일 위치로 수집.
+1. static 디렉토리 생성
+   - polls/static
+   - Django의 STATICFILES_FINDERS 설정은 다양한 소스에서 정적 파일을 찾는 방법을 알고 있는 파인더 목록을 보유함.
+    ```python
+    [
+        "django.contrib.staticfiles.finders.FileSystemFinder",
+        "django.contrib.staticfiles.finders.AppDirectoriesFinder",
+    ] 
+    ```
+    - AppDirectoriesFinder: INSTALLED_APPS 에서 “정적” 하위 디렉토리 탐색
+2. style.css 생성
+   - polls/static/polls/style.css
+    ```css
+    li a {
+        color: green;
+    }
+    ```
+3. style 적용
+   - polls/templates/polls/index.html
+    ```html
+    {% load static %}
+   
+    <link rel="stylesheet" href="{% static 'polls/style.css' %}">
+    ```
+   - {% static %} 템플릿 태그: 정적 파일의 절대 URL을 생성
+4. 배경 이미지 추가
+   - polls/static/polls/images 디렉토리 추가, background.png 이미지 업로드
+   - polls/static/polls/style.css 
+    ```css
+    body {
+        background: white url("images/background.png") no-repeat;
+    }
+    ```
+
 ---
-# 프로그래밍
+# 정리
 ## Scheduler
 - 원하는 시간에 python script 를 실행하고 싶을 때 사용.
 - 대표 라이브러리: APScheduler(**Advanced Python Scheduler**)
@@ -591,6 +1136,19 @@ True
             from . import operator
             operator.start()
   ```
+
+## CSRF 방지
+- 교차 사이트 요청 위조(Cross Site Request Forgeries) 방지를 위한 기능.
+- POST 양식에서는 무조건 사용.
+- 작성법
+    ```html
+    {% csrf_token %}
+    ```
+- 동작과정
+  1. 사용자가 해당 페이지에 접속하면 Django에서 자동으로 csrf_token을 클라이언트로 보내어 cookie에 저장
+  2. 사용자가 제출 버튼을 클릭하면 form과 cookie의 csrf_token을 함께 전송됨.(두 값이 다름)
+  3. 전송된 token의 유효성 검증함.
+  4. 유효한 요청이면 요청 처리, 유효하지 않거나(값이 없을 경우도 포함) 검증 오류시에는 403 Forbidden Response 반환
 ---
 
 # 참조
