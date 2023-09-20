@@ -329,10 +329,10 @@ USE_TZ = False
 ## 7. DB 제어(추가, 검색, 삭제)
 - Shell 에서 DB 제어
 1. Shell 열기
-   - manage.py에 설정된 DJANGO_SETTINGS_MODULE 환경변수에 입력된 mysite/settings.py의 Python 가져오기 경로를 Django에게 제공.
 ```commandline
 > py manage.py shell
 ```
+   - manage.py에 설정된 DJANGO_SETTINGS_MODULE 환경변수에 입력된 mysite/settings.py의 Python 가져오기 경로를 Django에게 제공.
 2. 데이터 저장
 ```commandline
 >>> from polls.models import Choice, Question
@@ -522,33 +522,33 @@ True
      - 콜론(:): 변환기와 패턴이름을 구분
 3. index URL 접속시 Question 객체 출력하기
   - polls/view.py 추가
-    ```python
-    from django.http import HttpResponse
-    from .models import Question
-    
-    # 새로운 index() 뷰 하나를 호출했을 때, 시스템에 저장된 최소한 5 개의 투표 질문이 콤마로 분리되어, 발행일에 따라 출력                
-    def index(request):   
-        latest_question_list = Questino.objects.order_by("-pub_date")[:5]
-        output = ", ".join([q.question_text for q in latest_question_list])
-        return HttpRespone(output)
-    ```
+  ```python
+  from django.http import HttpResponse
+  from .models import Question
+  
+  # 새로운 index() 뷰 하나를 호출했을 때, 시스템에 저장된 최소한 5 개의 투표 질문이 콤마로 분리되어, 발행일에 따라 출력                
+  def index(request):   
+      latest_question_list = Questino.objects.order_by("-pub_date")[:5]
+      output = ", ".join([q.question_text for q in latest_question_list])
+      return HttpRespone(output)
+  ```
 4. html 페이지에 Question 객체 출력
   - polls/templates/polls/index.html 생성
      - polls/templates/polls/index.html 생성
      - 프로젝트의 TEMPLATES 설정은 Django가 어떻게 템플릿을 불러오고 렌더링 할 것인지 기술
      - APP_DIRS 옵션이 True로 설정된 DjangoTemplates 백엔드를 구성
      - DjangoTemplates은 각 INSTALLED_APPS 디렉토리의 “templates” 하위 디렉토리를 탐색
-       ```html
-        {% if latest_question_list %}
-            <ul>
-            {% for q in latest_question_list %}
-                <li><a href="/polls/{{ q.id }}">{{ q.question_text }}</li>
-            {% endfor %}
-            </ul>
-        {% else %}
-            <p>No polls are available.</p>
-        {% endif %}
-        ```
+     ```html
+      {% if latest_question_list %}
+          <ul>
+          {% for q in latest_question_list %}
+              <li><a href="/polls/{{ q.id }}">{{ q.question_text }}</li>
+          {% endfor %}
+          </ul>
+      {% else %}
+          <p>No polls are available.</p>
+      {% endif %}
+      ```
   - index 뷰에 template 적용
     - 템플릿에 context를 채워넣어 표현한 결과를 HttpResponse 객체와 함께 돌려줌.
     ```python
@@ -573,18 +573,18 @@ True
         return render(request, "polls/index.html", context)
     ```
     - 404 에러 발생
-      ```python
-      from django.http import Http404
-      from django.shortcuts import render, get_object_or_404
-      from .models import Question
-    
-      def detail(request, question_id):
-          try:
-              question = Question.objects.get(pk=question_id)
-          except Question.DoesNotExist:
-              raise Http404("Question does not exist")
-          return redner(request, "polls/detail.html", {"question": question})
-      ```
+    ```python
+    from django.http import Http404
+    from django.shortcuts import render, get_object_or_404
+    from .models import Question
+  
+    def detail(request, question_id):
+        try:
+            question = Question.objects.get(pk=question_id)
+        except Question.DoesNotExist:
+            raise Http404("Question does not exist")
+        return redner(request, "polls/detail.html", {"question": question})
+    ```
     - 단축 기능(shortcuts)으로 코딩
     ```python
     from django.shortcuts import render, get_object_or_404
